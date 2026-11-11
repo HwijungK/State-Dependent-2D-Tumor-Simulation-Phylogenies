@@ -218,7 +218,7 @@ name="alignment">
                     <substModel id="JC69.s:state_dependent_clock_sim" spec="JukesCantor"/>
                 </siteModel>
                 	<!-- 	<branchRateModel id="StrictClock.c:H3N2" spec="beast.evolution.branchratemodel.StrictClockModel" clock.rate="@clockRate.c:state_dependent_clock_sim"/>-->
-			<branchRateModel id="StrictClock.c:H3N2" spec="sdevo.bdmm.BdmmStateClock" clock.rate="@clockRate.c:state_dependent_clock_sim" normalize="true">
+			<branchRateModel id="StrictClock.c:H3N2" spec="f.bdmm.BdmmStateClock" clock.rate="@clockRate.c:state_dependent_clock_sim" normalize="true">
     				<relativeClockRates idref="birthRateCanonical.t:state_dependent_clock_sim"/>
 
     				<typedTree spec="sdevo.bdmm.FlatTypeMappedTree" parameterization="@CanonicalBDMMPrimeParameterization.t:state_dependent_clock_sim" typeLabel="loc" frequencies="@typeFrequencies.t:state_dependent_clock_sim" untypedTree="@Tree.t:state_dependent_clock_sim" typeTraitSet="@typeTraitSet.t:state_dependent_clock_sim"/>
