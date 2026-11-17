@@ -244,7 +244,7 @@ class World:
 
     def generate_strands(self):
         """
-        Uses information in log file and appends a generated DNA sequence to it
+        Uses information in log file and appends a generated DNA sequence to it. Updates the log file
         :return:
         Dataframe of log with new column.
         """
@@ -271,6 +271,9 @@ class World:
             "".join(mapping[i][1] if i in mut else mapping[i][0] for i in range(seq_length))
 
         )
+
+        # Write result to logfile
+        df.to_csv(self.log_file, sep = "\t", index = False)
         return df
 
     def end_sim(self):
@@ -278,6 +281,8 @@ class World:
         cells = self._get_all_cells_shuffled()
         for cell in cells:
             self.remove_cell(cell)
+
+        self.generate_strands()
 
 
 # Helper Functions

@@ -8,7 +8,7 @@ def convert_fasta(input_filename: str, output_filename: str):
     )
 
     # Sort IDs in increasing order
-    df.sort_values(by = "id", inplace=True)
+    df = df.sort_values(by = "id", key=pd.to_numeric)
 
     # creates file if needed/overwrites it if alr exists
     with open(output_filename, "w") as fasta:
