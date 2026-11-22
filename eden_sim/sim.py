@@ -140,7 +140,7 @@ class World:
         return self.next_id - 1
 
     def birth_new_cell(self, parent: Cell):
-        """Look for an empty neighboring position from the parent cell and create a new Cell there"""
+        """Replace the parent with two daughters if space is available for division."""
         empty_neighboring_indices = []
         for x in range(parent.x - 1, parent.x + 2):
             for y in range(parent.y - 1, parent.y + 2):
@@ -163,21 +163,27 @@ class World:
             if cell_position is None:
                 return
 
-        # mutations are inherited from the parent, and if cell mutates in process, add a new mutation
+        # Both daughters inherit the parent's mutations; the neighboring daughter can gain a new one.
         mutations = parent.mutations.copy()
         if rng.random() < self.mutation_rate:
             mutations.add(self.next_mutation_position)
             self.next_mutation_position += 1
 
-        self._set_cell_at_position(Cell(
-            cell_id = self._get_next_cell_id(), parent_id = parent.cell_id,
-            state = "edge",
-            x = cell_position[0], y = cell_position[1],
-            birth_date = self.step,
-            generation = parent.generation + 1,
-            death_rate = parent.death_rate, birth_rate = parent.birth_rate,
-            mutations = mutations
-        ))
+        # A successful division ends the parent's lifetime and starts two new lifetimes.
+        self.remove_cell(parent)
+        for position, daughter_mutations in (
+            ((parent.x, parent.y), parent.mutations.copy()),
+            (cell_position, mutations),
+        ):
+            self._set_cell_at_position(Cell(
+                cell_id = self._get_next_cell_id(), parent_id = parent.cell_id,
+                state = "edge",
+                x = position[0], y = position[1],
+                birth_date = self.step,
+                generation = parent.generation + 1,
+                death_rate = parent.death_rate, birth_rate = parent.birth_rate,
+                mutations = daughter_mutations
+            ))
 
     def seed_cell(self, x: int, y: int, birth_rate: float, death_rate: float):
         """Used at the start of the simulation to seed the founding cell"""
