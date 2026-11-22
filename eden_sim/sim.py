@@ -219,9 +219,10 @@ class World:
 
     def remove_cell(self, cell: Cell):
         # On death, add a log of that cell (this will need to be changed if we want to store how a cell's position changes through time)
+        final_state = self._get_cell_state(cell)
         with open(self.log_file, "a") as file:
             file.write(
-                f"{cell.cell_id}\t{cell.parent_id}\t{cell.generation}\t{cell.birth_date}\t{self.step}\t{cell.mutations}\t{cell.state}\n")
+                f"{cell.cell_id}\t{cell.parent_id}\t{cell.generation}\t{cell.birth_date}\t{self.step}\t{cell.mutations}\t{final_state}\n")
 
         self.grid[cell.x, cell.y] = None
         self.cell_count -= 1
@@ -319,5 +320,7 @@ class World:
 def visualize_world(world: World):
     """hacky way to visualize each world grid"""
     grid = world.grid
+    for row in grid:
+        print(" ".join(["." if x is None else "E" if world._get_cell_state(x) == "edge" else "C" for x in row]), flush = True)
     for row in grid:
         print("  ".join(["..." if x is None else f"{x.cell_id:03d}" for x in row]), flush = True)
