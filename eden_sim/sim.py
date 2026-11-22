@@ -95,7 +95,7 @@ class World:
         # Path where logs will be generated as CSV
         self.log_file = Path(log_file)
         with open(self.log_file, "w") as file:
-            file.write("id\tparent_id\tgeneration\tbirth_date\tdeath_date\tmutations\n")
+            file.write("id\tparent_id\tgeneration\tbirth_date\tdeath_date\tmutations\tstates\n")
 
     def update(self):
         # after adding remove cell function (which happens when cell action is death), sometimes sim keeps running when there's already nothing
@@ -134,6 +134,24 @@ class World:
         self.grid[cell.x, cell.y] = cell
         self.cell_count += 1
 
+    def _get_cell_state(self, cell: Cell) -> CellState:
+        """A cell is edge if any cardinal ray to the boundary contains at most one other cell."""
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            x, y = cell.x + dx, cell.y + dy
+            occupied = 0
+            while 0 <= x < self.size and 0 <= y < self.size:
+                if self.grid[x, y] is not None:
+                    occupied += 1
+                    if occupied > 1:
+                        break
+                x += dx
+                y += dy
+
+            if occupied <= 1:
+                return "edge"
+
+        return "center"
+
     def _get_next_cell_id(self):
         """return next unused id number and increment counter"""
         self.next_id += 1
@@ -141,6 +159,7 @@ class World:
 
     def birth_new_cell(self, parent: Cell):
         """Replace the parent with two daughters if space is available for division."""
+        parent.state = self._get_cell_state(parent)
         empty_neighboring_indices = []
         for x in range(parent.x - 1, parent.x + 2):
             for y in range(parent.y - 1, parent.y + 2):
@@ -165,7 +184,8 @@ class World:
 
         # A successful division ends the parent's lifetime and starts two new lifetimes.
         self.remove_cell(parent)
-        for position in ((parent.x, parent.y), cell_position):
+        daughter_positions = ((parent.x, parent.y), cell_position)
+        for position in daughter_positions:
             # Both daughters inherit the parent's mutations and can independently gain a new one.
             daughter_mutations = parent.mutations.copy()
             if rng.random() < self.mutation_rate:
@@ -182,6 +202,11 @@ class World:
                 mutations = daughter_mutations
             ))
 
+        # Assess the daughters after both are present on the grid.
+        for x, y in daughter_positions:
+            daughter = self.grid[x, y]
+            daughter.state = self._get_cell_state(daughter)
+
     def seed_cell(self, x: int, y: int, birth_rate: float, death_rate: float):
         """Used at the start of the simulation to seed the founding cell"""
         self._set_cell_at_position(
@@ -196,7 +221,7 @@ class World:
         # On death, add a log of that cell (this will need to be changed if we want to store how a cell's position changes through time)
         with open(self.log_file, "a") as file:
             file.write(
-                f"{cell.cell_id}\t{cell.parent_id}\t{cell.generation}\t{cell.birth_date}\t{self.step}\t{cell.mutations}\n")
+                f"{cell.cell_id}\t{cell.parent_id}\t{cell.generation}\t{cell.birth_date}\t{self.step}\t{cell.mutations}\t{cell.state}\n")
 
         self.grid[cell.x, cell.y] = None
         self.cell_count -= 1
@@ -257,7 +282,7 @@ class World:
         df = pd.read_csv(
             self.log_file, sep = '\t',
             dtype = {"id": "string", "parent_id": "string", "generation": "int", "birth_date": "int",
-                     "death_date": "int"}
+                     "death_date": "int", "states": "string"}
         )
         df['mutations'] = df['mutations'].apply(ast.literal_eval)
         seq_length = max(
