@@ -89,7 +89,7 @@ class World:
         #
         # next base position to add
         self.next_mutation_position = 1
-        # probability of offspring to get a mutation (1.0 in the paper)
+        # probability of each daughter getting a mutation (1.0 in the paper)
         self.mutation_rate = mutation_rate
 
         # Path where logs will be generated as CSV
@@ -163,18 +163,15 @@ class World:
             if cell_position is None:
                 return
 
-        # Both daughters inherit the parent's mutations; the neighboring daughter can gain a new one.
-        mutations = parent.mutations.copy()
-        if rng.random() < self.mutation_rate:
-            mutations.add(self.next_mutation_position)
-            self.next_mutation_position += 1
-
         # A successful division ends the parent's lifetime and starts two new lifetimes.
         self.remove_cell(parent)
-        for position, daughter_mutations in (
-            ((parent.x, parent.y), parent.mutations.copy()),
-            (cell_position, mutations),
-        ):
+        for position in ((parent.x, parent.y), cell_position):
+            # Both daughters inherit the parent's mutations and can independently gain a new one.
+            daughter_mutations = parent.mutations.copy()
+            if rng.random() < self.mutation_rate:
+                daughter_mutations.add(self.next_mutation_position)
+                self.next_mutation_position += 1
+
             self._set_cell_at_position(Cell(
                 cell_id = self._get_next_cell_id(), parent_id = parent.cell_id,
                 state = "edge",
