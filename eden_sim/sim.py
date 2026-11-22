@@ -15,7 +15,7 @@ CellAction = Literal["death", "birth", "skip"]
 class Cell:
     def __init__(self, cell_id: int, parent_id: int | None,
                  state: CellState,
-                 x: int, y: int, birth_date: int,
+                 x: int, y: int, birth_date: int, generation: int,
                  death_rate: float, birth_rate: float,
                  mutations: Set[int]):
         self.cell_id = cell_id
@@ -23,6 +23,7 @@ class Cell:
         self.state = state
         self.x, self.y = x, y
         self.birth_date = birth_date
+        self.generation = generation
         self.death_rate = death_rate
         self.birth_rate = birth_rate
         self.mutations = mutations
@@ -173,6 +174,7 @@ class World:
             state = "edge",
             x = cell_position[0], y = cell_position[1],
             birth_date = self.step,
+            generation = parent.generation + 1,
             death_rate = parent.death_rate, birth_rate = parent.birth_rate,
             mutations = mutations
         ))
@@ -182,6 +184,7 @@ class World:
         self._set_cell_at_position(
             Cell(cell_id = self._get_next_cell_id(), parent_id = None, state = "edge",
                  x = x, y = y, birth_date = self.step, death_rate = death_rate,
+                 generation = 1,
                  birth_rate = birth_rate,
                  mutations = set())
         )
@@ -269,7 +272,6 @@ class World:
         df['seq'] = df['mutations'].map(
             lambda mut:
             "".join(mapping[i][1] if i in mut else mapping[i][0] for i in range(seq_length))
-
         )
 
         # Write result to logfile
