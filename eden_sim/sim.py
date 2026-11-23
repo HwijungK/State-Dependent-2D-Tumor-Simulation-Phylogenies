@@ -95,7 +95,7 @@ class World:
         # Path where logs will be generated as CSV
         self.log_file = Path(log_file)
         with open(self.log_file, "w") as file:
-            file.write("id\tparent_id\tgeneration\tbirth_date\tdeath_date\tmutations\tstates\n")
+            file.write("id\tparent_id\tgeneration\tbirth_date\tdeath_date\tmutations\tstates\tposition_x\tposition_y\n")
 
     def update(self):
         # after adding remove cell function (which happens when cell action is death), sometimes sim keeps running when there's already nothing
@@ -217,12 +217,17 @@ class World:
                  mutations = set())
         )
 
-    def remove_cell(self, cell: Cell):
+    def remove_cell(self, cell: Cell, *,
+                    final_state: CellState | None = None,
+                    death_date: int | None = None):
         # On death, add a log of that cell (this will need to be changed if we want to store how a cell's position changes through time)
-        final_state = self._get_cell_state(cell)
+        if final_state is None:
+            final_state = self._get_cell_state(cell)
+        if death_date is None:
+            death_date = self.step
         with open(self.log_file, "a") as file:
             file.write(
-                f"{cell.cell_id}\t{cell.parent_id}\t{cell.generation}\t{cell.birth_date}\t{self.step}\t{cell.mutations}\t{final_state}\n")
+                f"{cell.cell_id}\t{cell.parent_id}\t{cell.generation}\t{cell.birth_date}\t{death_date}\t{cell.mutations}\t{final_state}\t{cell.x}\t{cell.y}\n")
 
         self.grid[cell.x, cell.y] = None
         self.cell_count -= 1
@@ -283,7 +288,7 @@ class World:
         df = pd.read_csv(
             self.log_file, sep = '\t',
             dtype = {"id": "string", "parent_id": "string", "generation": "int", "birth_date": "int",
-                     "death_date": "int", "states": "string"}
+                     "death_date": "int", "states": "string", "position_x": "int", "position_y": "int"}
         )
         df['mutations'] = df['mutations'].apply(ast.literal_eval)
         seq_length = max(
@@ -308,10 +313,13 @@ class World:
         return df
 
     def end_sim(self):
-        """Kill all remaining alive cells and log them"""
+        """Snapshot final states, then log survivors at the final step plus one."""
         cells = self._get_all_cells_shuffled()
         for cell in cells:
-            self.remove_cell(cell)
+            cell.state = self._get_cell_state(cell)
+
+        for cell in cells:
+            self.remove_cell(cell, final_state = cell.state, death_date = self.step + 1)
 
         self.generate_strands()
 
