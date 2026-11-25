@@ -81,13 +81,15 @@ def build_dendropy_tree(
 
     survivor_ids = set(df.loc[df["death_date"].eq(df["death_date"].max()), "id"])
     # Create every node first so the input row order does not matter.
-    nodes = {
-        row.id: dendropy.Node(
+    nodes = {}
+    for row in df.itertuples(index=False):
+        node = dendropy.Node(
             label=str(row.id) if row.id in survivor_ids else None,
             edge_length=row.death_date - row.birth_date if branch_length == "time" else 1,
         )
-        for row in df.itertuples(index=False)
-    }
+        # Keep ancestor identities available without adding visible ID labels.
+        node.cell_id = str(row.id)
+        nodes[row.id] = node
     for parent_id, child_ids in children.items():
         for child_id in child_ids:
             nodes[parent_id].add_child(nodes[child_id])
@@ -99,6 +101,7 @@ def to_biopython_tree(tree: dendropy.Tree) -> Tree:
     """Convert to Biopython clades, preserving labels and branch lengths.
 
     Direct conversion preserves numeric ID labels and zero-length edges.
+    Cell IDs are copied separately so unlabeled ancestors can have state markers.
     The returned tree is ladderized for plotting; the input is unchanged.
     """
     clades = {
@@ -109,6 +112,7 @@ def to_biopython_tree(tree: dendropy.Tree) -> Tree:
         for node in tree.preorder_node_iter()
     }
     for node, clade in clades.items():
+        clade.cell_id = getattr(node, "cell_id", clade.name)
         clade.clades = [clades[child] for child in node.child_node_iter()]
 
     plot_tree = Tree(root=clades[tree.seed_node], rooted=tree.is_rooted)
@@ -122,14 +126,23 @@ def plot_sim_tree(
     *,
     ax: Axes | None = None,
 ) -> tuple[Figure, Axes]:
-    """Plot a Biopython tree with survivor markers colored by cell state.
+    """Plot state markers for survivors and their branching common ancestors.
 
-    ``df`` supplies ``id`` and ``states`` (``edge`` or ``center``). A new
-    figure scales with the number of tips, or callers can supply their own
-    axes. Returns ``(fig, ax)`` without calling ``plt.show()`` so callers can
-    customize, display, or save the figure.
+    Ancestors receive a marker where at least two child lineages contain final
+    survivors. Ancestor IDs stay hidden, and ancestors along a single retained
+    lineage stay unmarked. States are taken from the log at the end of each
+    cell's lifetime.
+
+    ``df`` supplies ``id``, ``death_date``, and ``states`` (``edge`` or
+    ``center``). A new figure scales with the number of tips, or callers can
+    supply their own axes. Returns ``(fig, ax)`` without calling ``plt.show()``
+    so callers can customize, display, or save the figure.
     """
-    if "states" not in df.columns or not df["states"].isin(("edge", "center")).all():
+    required_columns = {"id", "death_date", "states"}
+    missing_columns = required_columns - set(df.columns)
+    if missing_columns:
+        raise ValueError(f"Missing required columns: {', '.join(sorted(missing_columns))}.")
+    if not df["states"].isin(("edge", "center")).all():
         raise ValueError("Each individual must have a states value of 'edge' or 'center'.")
 
     tree.root.color = "#237A8A"
@@ -149,15 +162,33 @@ def plot_sim_tree(
 
     state_colors = {"edge": "#E69F00", "center": "#0072B2"}
     state_by_id = {str(cell_id): state for cell_id, state in zip(df["id"], df["states"])}
-    node_positions = {
-        label.get_text().strip(): label.get_position()
-        for label in ax.texts
-        if label.get_text().strip() in state_by_id
+    survivor_ids = set(df.loc[df["death_date"].eq(df["death_date"].max()), "id"].astype(str))
+
+    # Match Phylo.draw's coordinates, including its fallback for all-zero lengths.
+    x_positions = tree.depths()
+    if not max(x_positions.values()):
+        x_positions = tree.depths(unit_branch_lengths=True)
+    y_positions = {
+        tip: index for index, tip in enumerate(tree.get_terminals(), start=1)
     }
+    has_survivor = {}
+    marked_clades = []
+    for clade in tree.find_clades(order="postorder"):
+        cell_id = getattr(clade, "cell_id", clade.name)
+        is_survivor = cell_id in survivor_ids
+        surviving_branches = sum(has_survivor[child] for child in clade.clades)
+        has_survivor[clade] = is_survivor or surviving_branches > 0
+        if clade.clades:
+            y_positions[clade] = (
+                y_positions[clade.clades[0]] + y_positions[clade.clades[-1]]
+            ) / 2
+        if is_survivor or surviving_branches >= 2:
+            marked_clades.append(clade)
+
     for state, color in state_colors.items():
         positions = [
-            position for cell_id, position in node_positions.items()
-            if state_by_id[cell_id] == state
+            (x_positions[clade], y_positions[clade]) for clade in marked_clades
+            if state_by_id.get(getattr(clade, "cell_id", clade.name)) == state
         ]
         if positions:
             ax.scatter(
