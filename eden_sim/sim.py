@@ -7,6 +7,8 @@ from functools import reduce
 import ast
 from itertools import permutations
 
+DATA_DIR = Path(__file__).resolve().parent / "data"
+
 rng = np.random.default_rng(42)
 CellState = Literal["edge", "center"]
 CellAction = Literal["death", "birth", "skip"]
@@ -44,7 +46,7 @@ class World:
                  target_cells: int = 1000,
                  growth_model: Literal["boundary", "unrestricted"] = "boundary",
                  mutation_rate: float = 1.0,
-                 log_file: str = None):
+                 log_file: str | Path | None = None):
 
         # check if inputs make sense
         if size < 1 or target_cells < 1:
@@ -92,8 +94,9 @@ class World:
         # probability of each daughter getting a mutation (1.0 in the paper)
         self.mutation_rate = mutation_rate
 
-        # Path where logs will be generated as CSV
-        self.log_file = Path(log_file)
+        # Store the default log in eden_sim/data, regardless of the working directory.
+        self.log_file = DATA_DIR / "log_eden.tsv" if log_file is None else Path(log_file)
+        self.log_file.parent.mkdir(parents = True, exist_ok = True)
         with open(self.log_file, "w") as file:
             file.write("id\tparent_id\tgeneration\tbirth_date\tdeath_date\tmutations\tstates\tposition_x\tposition_y\n")
 

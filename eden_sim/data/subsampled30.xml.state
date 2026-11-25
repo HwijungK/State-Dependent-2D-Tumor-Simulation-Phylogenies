@@ -1,0 +1,24 @@
+<itsabeastystatewerein version='2.0' sample='100000'>
+<statenode id='Tree.t:log_eden_subsampled'>(((17:0.6047513973873355,4:0.6047513973873355)54:4.002199670198054,((((18:2.0680217430892722,7:2.0680217430892722)44:0.40620191321490573,3:2.474223656304178)38:0.5847502022641322,5:3.05897385856831)46:0.25307480197874055,(12:2.2833096795340877,14:2.2833096795340877)37:1.028738981012963)45:1.2949024070383386)51:0.4232902415747475,((21:4.7406112356060435,(9:3.030827217331614,8:3.030827217331614)36:1.7097840182744295)35:0.18027272461196908,(((((2:2.9879293524534636,((27:2.5086006067011444,(20:2.163927135542843,(24:1.3624189593125318,29:1.3624189593125318)31:0.8015081762303111)42:0.3446734711583015)50:0.25314157742037713,6:2.7617421841215215)43:0.22618716833194208)55:0.3900344639153648,25:3.3779638163688284)32:0.7760633419540537,((((13:2.9181294060600993,23:2.9181294060600993)40:0.25025626502196463,10:3.168385671082064)53:0.13228178883736286,16:3.300667459919427)49:0.3411138467198307,19:3.6417813066392575)56:0.5122458516836246)58:0.06831142779782695,(0:3.836109259458122,((11:2.7682144915761278,(28:1.3901023239221972,26:1.3901023239221972)33:1.3781121676539305)30:0.1441604206640812,15:2.912374912240209)52:0.9237343472179131)41:0.3862293266625869)48:0.44224731416180685,(22:0.6487939456377637,1:0.6487939456377637)34:4.015791954644752)57:0.2562980599354967)39:0.10935734894212423)47:0.0</statenode>
+<statenode id='originBDMMPrime.t:log_eden_subsampled'>originBDMMPrime.t:log_eden_subsampled[1 1] (0.0,1000.0): 5.281984977209387 </statenode>
+<statenode id='typeFrequencies.t:log_eden_subsampled'>typeFrequencies.t:log_eden_subsampled[2 1] (0.0,1.0): 0.630945048991646 0.3690549510083535 </statenode>
+<statenode id='birthRateCanonical.t:log_eden_subsampled'>birthRateCanonical.t:log_eden_subsampled[2 1] (0.0,100.0): 0.005186266961208892 1.1693894709966794E-4 </statenode>
+<statenode id='deathRateCanonical.t:log_eden_subsampled'>deathRateCanonical.t:log_eden_subsampled[1 1] (-Infinity,Infinity): 7.234412639845247E-19 </statenode>
+<statenode id='migrationRateCanonical.t:log_eden_subsampled'>migrationRateCanonical.t:log_eden_subsampled[2 1] (-Infinity,Infinity): 0.05073439744821031 5.760861843137018 </statenode>
+</itsabeastystatewerein>
+<!--
+{"operators":[
+{"id":"BDMMPrimeLeafToSA.t:log_eden_subsampled","p":"NaN","accept":0,"reject":12994,"acceptFC":0,"rejectFC":7092,"rejectIv":12994,"rejectOp":12994},
+{"id":"BDMMPrimeSAWilsonBalding.t:log_eden_subsampled","p":"NaN","accept":153,"reject":12699,"acceptFC":62,"rejectFC":6841,"rejectIv":477,"rejectOp":230},
+{"id":"BDMMPrimeSAWide.t:log_eden_subsampled","p":"NaN","accept":23,"reject":12938,"acceptFC":6,"rejectFC":6940,"rejectIv":6636,"rejectOp":6636},
+{"id":"BDMMPrimeSANarrow.t:log_eden_subsampled","p":"NaN","accept":388,"reject":12592,"acceptFC":160,"rejectFC":6924,"rejectIv":3259,"rejectOp":3259},
+{"id":"BDMMPrimeSAUniformOperator.t:log_eden_subsampled","p":"NaN","accept":11842,"reject":14348,"acceptFC":6421,"rejectFC":7835,"rejectIv":0,"rejectOp":0},
+{"id":"BDMMPrimeSATreeRootScaler.t:log_eden_subsampled","p":0.8177728557383707,"accept":507,"reject":795,"acceptFC":157,"rejectFC":566,"rejectIv":504,"rejectOp":325},
+{"id":"BDMMPrimeSATreeScaler.t:log_eden_subsampled","p":0.8016615486951322,"accept":1865,"reject":1961,"acceptFC":627,"rejectFC":1493,"rejectIv":515,"rejectOp":0},
+{"id":"originBDMMPrimeScaler.t:log_eden_subsampled","p":0.5817254414456449,"accept":1363,"reject":2565,"acceptFC":597,"rejectFC":1523,"rejectIv":839,"rejectOp":0},
+{"id":"typeFrequenciesExchanger.t:log_eden_subsampled","p":1.6375948429240745,"accept":818,"reject":422,"acceptFC":288,"rejectFC":411,"rejectIv":420,"rejectOp":420},
+{"id":"birthRateCanonicalScaler.t:log_eden_subsampled","p":0.224815231215063,"accept":2322,"reject":1501,"acceptFC":810,"rejectFC":1240,"rejectIv":0,"rejectOp":0},
+{"id":"deathRateCanonicalScaler.t:log_eden_subsampled","p":0.22319531065934822,"accept":2434,"reject":1550,"acceptFC":863,"rejectFC":1286,"rejectIv":0,"rejectOp":0},
+{"id":"migrationRateCanonicalScaler.t:log_eden_subsampled","p":0.22037011807548448,"accept":2356,"reject":1565,"acceptFC":818,"rejectFC":1345,"rejectIv":0,"rejectOp":0}
+]}
+-->

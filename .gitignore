@@ -1,7 +1,8 @@
 # Large Data Files
-*/data/*.tsv
-*/data/*.csv
-*/data/*.fasta
+*/data/**/*.tsv
+*/data/**/*.csv
+*/data/**/*.fasta
+*/data/**/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
