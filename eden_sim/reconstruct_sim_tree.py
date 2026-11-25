@@ -1,5 +1,6 @@
 """Reconstruct and plot cell ancestry from a completed Eden simulation log."""
 
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -31,10 +32,13 @@ def build_dendropy_tree(
     df: pd.DataFrame,
     branch_length: Literal["time", "mutation"] = "time",
 ) -> dendropy.Tree:
-    """Build a rooted tree, labeling only final survivors with their cell IDs.
+    """Build a rooted tree with cell-state annotations on every node.
 
     ``df`` must contain the sampled cells and all ancestors back to one root.
-    Final survivors have the maximum ``death_date`` in the completed log.
+    Only final survivors are labeled with cell IDs; they have the maximum
+    ``death_date`` in the completed log. Every node records its logged state
+    in a ``type`` annotation. Include these in Newick exports by passing
+    ``suppress_annotations=False`` to ``tree.as_string`` or ``tree.write``.
     ``branch_length="time"`` uses each cell's ``death_date - birth_date``;
     nodes therefore represent the end of each cell's lifetime, and final
     survivors align at the simulation end time (relative to the root's birth).
@@ -45,7 +49,7 @@ def build_dendropy_tree(
     if branch_length not in ("time", "mutation"):
         raise ValueError("branch_length must be 'time' or 'mutation'.")
 
-    required_columns = {"id", "parent_id", "birth_date", "death_date"}
+    required_columns = {"id", "parent_id", "birth_date", "death_date", "states"}
     missing_columns = required_columns - set(df.columns)
     if missing_columns:
         raise ValueError(f"Missing required columns: {', '.join(sorted(missing_columns))}.")
@@ -53,6 +57,8 @@ def build_dendropy_tree(
         raise ValueError("The simulation log is empty.")
     if df["id"].isna().any() or not df["id"].is_unique:
         raise ValueError("Each id must be unique and nonmissing.")
+    if not df["states"].isin(("edge", "center")).all():
+        raise ValueError("Each individual must have a states value of 'edge' or 'center'.")
     if df[["birth_date", "death_date"]].isna().any().any():
         raise ValueError("Each cell must have a birth_date and death_date.")
     if df["death_date"].lt(df["birth_date"]).any():
@@ -87,8 +93,7 @@ def build_dendropy_tree(
             label=str(row.id) if row.id in survivor_ids else None,
             edge_length=row.death_date - row.birth_date if branch_length == "time" else 1,
         )
-        # Keep ancestor identities available without adding visible ID labels.
-        node.cell_id = str(row.id)
+        node.annotations.add_new("type", row.states)
         nodes[row.id] = node
     for parent_id, child_ids in children.items():
         for child_id in child_ids:
@@ -98,10 +103,11 @@ def build_dendropy_tree(
 
 
 def to_biopython_tree(tree: dendropy.Tree) -> Tree:
-    """Convert to Biopython clades, preserving labels and branch lengths.
+    """Convert to Biopython clades, preserving labels, lengths, and types.
 
     Direct conversion preserves numeric ID labels and zero-length edges.
-    Cell IDs are copied separately so unlabeled ancestors can have state markers.
+    ``type`` annotations become Newick comments such as ``&type=edge``, which
+    survive saving and loading with ``Bio.Phylo.write`` and ``Bio.Phylo.read``.
     The returned tree is ladderized for plotting; the input is unchanged.
     """
     clades = {
@@ -112,7 +118,8 @@ def to_biopython_tree(tree: dendropy.Tree) -> Tree:
         for node in tree.preorder_node_iter()
     }
     for node, clade in clades.items():
-        clade.cell_id = getattr(node, "cell_id", clade.name)
+        node_type = node.annotations.get_value("type")
+        clade.comment = f"&type={node_type}" if node_type is not None else None
         clade.clades = [clades[child] for child in node.child_node_iter()]
 
     plot_tree = Tree(root=clades[tree.seed_node], rooted=tree.is_rooted)
@@ -122,7 +129,6 @@ def to_biopython_tree(tree: dendropy.Tree) -> Tree:
 
 def plot_sim_tree(
     tree: Tree,
-    df: pd.DataFrame,
     *,
     ax: Axes | None = None,
 ) -> tuple[Figure, Axes]:
@@ -130,20 +136,22 @@ def plot_sim_tree(
 
     Ancestors receive a marker where at least two child lineages contain final
     survivors. Ancestor IDs stay hidden, and ancestors along a single retained
-    lineage stay unmarked. States are taken from the log at the end of each
-    cell's lifetime.
+    lineage stay unmarked. Only survivors should have node names, as set by
+    ``build_dendropy_tree``. Types come from each clade's Newick comment
+    (``&type=edge`` or ``&type=center``); no simulation dataframe is needed.
 
-    ``df`` supplies ``id``, ``death_date``, and ``states`` (``edge`` or
-    ``center``). A new figure scales with the number of tips, or callers can
-    supply their own axes. Returns ``(fig, ax)`` without calling ``plt.show()``
-    so callers can customize, display, or save the figure.
+    A new figure scales with the number of tips, or callers can supply their
+    own axes. Returns ``(fig, ax)`` without calling ``plt.show()`` so callers
+    can customize, display, or save the figure.
     """
-    required_columns = {"id", "death_date", "states"}
-    missing_columns = required_columns - set(df.columns)
-    if missing_columns:
-        raise ValueError(f"Missing required columns: {', '.join(sorted(missing_columns))}.")
-    if not df["states"].isin(("edge", "center")).all():
-        raise ValueError("Each individual must have a states value of 'edge' or 'center'.")
+    state_colors = {"edge": "#E69F00", "center": "#0072B2"}
+    types_by_clade = {}
+    for clade in tree.find_clades():
+        match = re.search(r"(?:^&|,)\s*type\s*=\s*([^,]+)", getattr(clade, "comment", None) or "")
+        node_type = match.group(1).strip().strip("\"'") if match else None
+        if node_type not in state_colors:
+            raise ValueError("Each node must have a type annotation of 'edge' or 'center'.")
+        types_by_clade[clade] = node_type
 
     tree.root.color = "#237A8A"
     tree.root.width = 1.8
@@ -160,10 +168,6 @@ def plot_sim_tree(
         label_func=lambda clade: clade.name,
     )
 
-    state_colors = {"edge": "#E69F00", "center": "#0072B2"}
-    state_by_id = {str(cell_id): state for cell_id, state in zip(df["id"], df["states"])}
-    survivor_ids = set(df.loc[df["death_date"].eq(df["death_date"].max()), "id"].astype(str))
-
     # Match Phylo.draw's coordinates, including its fallback for all-zero lengths.
     x_positions = tree.depths()
     if not max(x_positions.values()):
@@ -174,8 +178,7 @@ def plot_sim_tree(
     has_survivor = {}
     marked_clades = []
     for clade in tree.find_clades(order="postorder"):
-        cell_id = getattr(clade, "cell_id", clade.name)
-        is_survivor = cell_id in survivor_ids
+        is_survivor = clade.name is not None
         surviving_branches = sum(has_survivor[child] for child in clade.clades)
         has_survivor[clade] = is_survivor or surviving_branches > 0
         if clade.clades:
@@ -188,7 +191,7 @@ def plot_sim_tree(
     for state, color in state_colors.items():
         positions = [
             (x_positions[clade], y_positions[clade]) for clade in marked_clades
-            if state_by_id.get(getattr(clade, "cell_id", clade.name)) == state
+            if types_by_clade[clade] == state
         ]
         if positions:
             ax.scatter(
