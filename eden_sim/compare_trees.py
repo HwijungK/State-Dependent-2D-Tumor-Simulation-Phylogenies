@@ -106,3 +106,37 @@ def compare_to_sdevo(sim_tree_in: dendropy.Tree) -> None:
     print(f"Pairwise-depth Spearman rho: {rho:.3f} (p = {p_value:.2g})")
     print(f"Pairwise-depth mean abs error (scaled): {np.mean(np.abs(sim_d - sdevo_d)):.3f}")
 
+
+
+#these tell which groupings of cells differ btwn simulated and sdevo tree
+def clade_sets(tree):
+    """Return each internal clade as a frozenset of tip labels."""
+    """essentially return family (descendant tips) of every internal node except root"""
+    n_tips = len(tree.leaf_nodes())
+    clades = set()
+    for node in tree.preorder_node_iter():
+        if node.is_leaf() or node is tree.seed_node:
+            continue
+        tips = frozenset(leaf.taxon.label for leaf in node.leaf_iter())
+        if 1 < len(tips) < n_tips:
+            clades.add(tips)
+    return clades
+
+
+def report_clade_differences(sim_tree, sdevo_tree):
+    """compares two trees using clade_sets"""
+    sim_clades = clade_sets(sim_tree)
+    sdevo_clades = clade_sets(sdevo_tree)
+
+    only_sdevo = sdevo_clades - sim_clades
+    only_sim = sim_clades - sdevo_clades
+
+    #print each clade's size, its sorted cell IDS (smallest first)
+    print(f"Clades only in SDevo: {len(only_sdevo)}")
+    for c in sorted(only_sdevo, key=len):
+        print(f"  size {len(c)}: {sorted(c)}")
+
+    print(f"Clades in sim missed by SDevo: {len(only_sim)}")
+    for c in sorted(only_sim, key=len):
+        print(f"  size {len(c)}: {sorted(c)}")
+
