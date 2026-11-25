@@ -6,10 +6,13 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 
 def convert_fasta(input_filename: str | Path = DATA_DIR / "log_eden.tsv",
                   output_filename: str | Path = DATA_DIR / "log.fasta"):
-    '''Convert the simulation log into a FASTA file, using eden_sim/data by default.'''
+    '''Convert the simulation log to FASTA with state_id_death_time headers.
+
+    Input and output default to eden_sim/data.
+    '''
     df = pd.read_csv(
         input_filename, sep = '\t',
-        dtype = {"id": "string", "parent_id": "string", "birth_date": "int", "death_date": "int", "seq": "string"}
+        dtype = {"id": "string", "parent_id": "string", "birth_date": "int", "death_date": "int", "states": "string", "seq": "string"}
     )
 
     # Sort IDs in increasing order
@@ -24,5 +27,5 @@ def convert_fasta(input_filename: str | Path = DATA_DIR / "log_eden.tsv",
             # build cell's dna sequence using its mutation positions
 
             # fasta file formatting
-            fasta.write(f">cell_{cell.id}\n")
+            fasta.write(f">{cell.states}_{cell.id}_{cell.death_date}\n")
             fasta.write(f"{cell.seq}\n")
