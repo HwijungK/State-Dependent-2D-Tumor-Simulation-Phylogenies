@@ -1,11 +1,11 @@
+#!/usr/bin/env python
+
 """Simulate Eden cell growth interactively or from a JSON run configuration.
 
 Examples, run from the project directory:
     python sim.py --run-index 0
     python sim.py --config config/eden_runs.json --run-index 1
 """
-
-#!/usr/bin/env python
 
 import argparse
 import json

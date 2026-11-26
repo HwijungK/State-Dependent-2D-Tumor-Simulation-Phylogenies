@@ -1,10 +1,10 @@
+#!/usr/bin/env python
+
 """Convert an Eden simulation TSV to FASTA.
 
 Usage:
     python log_to_fasta.py run.tsv --output run.fasta
 """
-
-#!/usr/bin/env python
 
 import argparse
 from pathlib import Path

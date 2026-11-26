@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """Fill the SDEVO BEAST template from a subsampled simulation FASTA.
 
 Examples, run from the project directory:
@@ -16,8 +18,6 @@ The FASTA, full simulation log, and output paths must be provided explicitly.
 Only the template has a default path: assets/subsampled30_SDEVO_fixed.xml.
 Existing output files and the template are never overwritten.
 """
-
-#!/usr/bin/env python
 
 import argparse
 from collections import Counter

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """Calculate successful divisions per actual cell update, grouped by state.
 
 Run after a new simulation, for example:
@@ -13,8 +15,6 @@ birth-attempt probability or a rate per hour.
 The old lifetime log and subsampled ancestry logs lack the required update
 history. Rerun the simulation with the updated World class to create it.
 """
-
-#!/usr/bin/env python
 
 import argparse
 import csv

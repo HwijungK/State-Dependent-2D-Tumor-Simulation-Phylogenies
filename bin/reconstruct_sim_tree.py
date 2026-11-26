@@ -1,6 +1,6 @@
-"""Reconstruct and plot cell ancestry from a completed Eden simulation log."""
-
 #!/usr/bin/env python
+
+"""Reconstruct and plot cell ancestry from a completed Eden simulation log."""
 
 import re
 from pathlib import Path

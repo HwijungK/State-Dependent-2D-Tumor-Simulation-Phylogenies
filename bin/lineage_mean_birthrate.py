@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """Calculate and export lineage mean birth rates for final simulation survivors.
 
 Usage from the project directory:
@@ -8,8 +10,6 @@ Preserves the notebook's definition: generation / (max(death_date) - 1).
 The founder starts at generation 1. Final survivors are logged by end_sim()
 with death_date equal to the final simulation tick plus one.
 """
-
-#!/usr/bin/env python
 
 import argparse
 import csv
