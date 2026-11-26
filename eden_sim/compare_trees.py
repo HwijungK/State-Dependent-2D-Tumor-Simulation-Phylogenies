@@ -96,6 +96,9 @@ def compare_to_sdevo(sim_tree_in: dendropy.Tree) -> None:
 
     print(f"Tips compared: {n_tips}")
     print(f"RF distance: {rf}  (normalized: {rf / max_rf:.3f})")
+
+    report_clade_differences(sim_tree, sdevo_tree)
+
     print(f"Clades only in SDevo: {false_pos}")
     print(f"Clades in sim missed by SDevo: {false_neg}")
 
