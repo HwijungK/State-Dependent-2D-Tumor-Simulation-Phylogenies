@@ -1,7 +1,7 @@
 """Calculate successful divisions per actual cell update, grouped by state.
 
 Run after a new simulation, for example:
-    python eden_sim/calculate-birthrate.py eden_sim/data/log_eden_updates.tsv
+    python calculate_birthrate.py data/log_eden_updates.tsv
 
 World writes one update-log row for every cell whose action is processed. Its
 state is measured immediately before that action. Deaths, skips, and blocked
@@ -13,6 +13,8 @@ birth-attempt probability or a rate per hour.
 The old lifetime log and subsampled ancestry logs lack the required update
 history. Rerun the simulation with the updated World class to create it.
 """
+
+#!/usr/bin/env python
 
 import argparse
 import csv

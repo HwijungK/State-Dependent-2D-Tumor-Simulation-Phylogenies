@@ -1,3 +1,14 @@
+"""Simulate Eden cell growth interactively or from a JSON run configuration.
+
+Examples, run from the project directory:
+    python sim.py --run-index 0
+    python sim.py --config config/eden_runs.json --run-index 1
+"""
+
+#!/usr/bin/env python
+
+import argparse
+import json
 from typing import Literal, Set
 import numpy as np
 import pandas as pd
@@ -8,6 +19,7 @@ import ast
 from itertools import permutations
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
+DEFAULT_CONFIG = Path(__file__).resolve().parent / "config" / "eden_runs.json"
 
 rng = np.random.default_rng(41)
 CellState = Literal["edge", "center"]
@@ -48,7 +60,7 @@ class World:
     action and whether that action successfully divided the cell.
     """
 
-    def __init__(self, size: int,
+    def __init__(self, size: int = 100,
                  time_step_hours: float = 2.0,
                  target_cells: int = 1000,
                  growth_model: Literal["boundary", "unrestricted"] = "boundary",
@@ -102,7 +114,7 @@ class World:
         # probability of each daughter getting a mutation (1.0 in the paper)
         self.mutation_rate = mutation_rate
 
-        # Store the default log in eden_sim/data, regardless of the working directory.
+        # Store the default log in data, regardless of the working directory.
         self.log_file = DATA_DIR / "log_eden.tsv" if log_file is None else Path(log_file)
         # One row per actual cell update, including unsuccessful birth attempts.
         self.update_log_file = (
@@ -354,6 +366,45 @@ class World:
         self.generate_strands()
 
 
+def run_simulation(
+    *,
+    size: int = 100,
+    time_step_hours: float = 2.0,
+    target_cells: int = 1000,
+    growth_model: Literal["boundary", "unrestricted"] = "boundary",
+    mutation_rate: float = 1.0,
+    log_file: str | Path | None = None,
+    update_log_file: str | Path | None = None,
+    birth_rate: float = 0.5,
+    death_rate: float = 0.1,
+) -> World:
+    """Seed the center and run until the target is reached or all cells die.
+
+    Run without visualization, printing, or delays. As in eden.ipynb, finish
+    with end_sim() to log survivors and generate DNA sequences. The returned
+    world is finalized: its grid is empty and its TSV logs contain the results.
+    Relative log paths are interpreted from the current working directory.
+    """
+    if not 0 <= birth_rate <= 1 or not 0 <= death_rate <= 1:
+        raise ValueError("birth_rate and death_rate must be between 0 and 1")
+
+    world = World(
+        size=size,
+        time_step_hours=time_step_hours,
+        target_cells=target_cells,
+        growth_model=growth_model,
+        mutation_rate=mutation_rate,
+        log_file=log_file,
+        update_log_file=update_log_file,
+    )
+    center = world.size // 2
+    world.seed_cell(x=center, y=center, birth_rate=birth_rate, death_rate=death_rate)
+    while 0 < world.cell_count < world.target_cells:
+        world.update()
+    world.end_sim()
+    return world
+
+
 # Helper Functions
 def visualize_world(world: World):
     """hacky way to visualize each world grid"""
@@ -362,3 +413,34 @@ def visualize_world(world: World):
         print(" ".join(["." if x is None else "E" if world._get_cell_state(x) == "edge" else "C" for x in row]), flush = True)
     for row in grid:
         print("  ".join(["..." if x is None else f"{x.cell_id:03d}" for x in row]), flush = True)
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Run one Eden simulation from a JSON array of parameters.")
+    parser.add_argument(
+        "--config", type=Path, default=DEFAULT_CONFIG,
+        help="JSON array of run parameter objects (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--run-index", type=int, default=0,
+        help="zero-based index of the run to execute (default: %(default)s)",
+    )
+    args = parser.parse_args(argv)
+    try:
+        runs = json.loads(args.config.read_text())
+        if not isinstance(runs, list) or not runs:
+            raise ValueError("The config must contain a nonempty JSON array of run objects.")
+        if not 0 <= args.run_index < len(runs):
+            raise ValueError(f"run-index must be between 0 and {len(runs) - 1}.")
+        parameters = runs[args.run_index]
+        if not isinstance(parameters, dict):
+            raise ValueError("The selected run must be a JSON object of simulation parameters.")
+        world = run_simulation(**parameters)
+    except (OSError, ValueError, TypeError) as error:
+        parser.error(str(error))
+    print(f"Simulation finished after {world.step} ticks.")
+    print(f"Wrote {world.log_file} and {world.update_log_file}")
+
+
+if __name__ == "__main__":
+    main()

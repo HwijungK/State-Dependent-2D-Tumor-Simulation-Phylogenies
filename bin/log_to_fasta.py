@@ -1,8 +1,10 @@
 """Convert an Eden simulation TSV to FASTA.
 
 Usage:
-    python eden_sim/log_to_fasta.py run.tsv --output run.fasta
+    python log_to_fasta.py run.tsv --output run.fasta
 """
+
+#!/usr/bin/env python
 
 import argparse
 from pathlib import Path

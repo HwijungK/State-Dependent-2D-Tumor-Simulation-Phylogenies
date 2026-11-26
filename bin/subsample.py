@@ -1,5 +1,7 @@
 """Subsample final simulation survivors while retaining their full ancestry."""
 
+#!/usr/bin/env python
+
 from math import ceil
 from numbers import Integral, Real
 from pathlib import Path

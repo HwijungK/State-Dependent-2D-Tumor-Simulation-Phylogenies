@@ -1,8 +1,13 @@
 # Large Data Files
-*/data/**/*.tsv
-*/data/**/*.csv
-*/data/**/*.fasta
-*/data/**/*
+/data/**
+
+# Preserve the simulation files already versioned before moving data to the root.
+!/data/log_eden_subsampled.trees
+!/data/subsampled30.log_eden_subsampled.typed.node.trees
+!/data/subsampled30.log_eden_subsampled.typed.trees
+!/data/subsampled30.xml
+!/data/subsampled30.xml.state
+!/data/summary.tree
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
