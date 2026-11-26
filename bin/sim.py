@@ -378,31 +378,34 @@ def run_simulation(
     birth_rate: float = 0.5,
     death_rate: float = 0.1,
 ) -> World:
-    """Seed the center and run until the target is reached or all cells die.
+    """Seed the center and run until the target is reached, restarting on extinction.
 
     Run without visualization, printing, or delays. As in eden.ipynb, finish
     with end_sim() to log survivors and generate DNA sequences. The returned
     world is finalized: its grid is empty and its TSV logs contain the results.
+    Each restart resets the world and both logs while continuing the RNG stream.
     Relative log paths are interpreted from the current working directory.
     """
     if not 0 <= birth_rate <= 1 or not 0 <= death_rate <= 1:
         raise ValueError("birth_rate and death_rate must be between 0 and 1")
 
-    world = World(
-        size=size,
-        time_step_hours=time_step_hours,
-        target_cells=target_cells,
-        growth_model=growth_model,
-        mutation_rate=mutation_rate,
-        log_file=log_file,
-        update_log_file=update_log_file,
-    )
-    center = world.size // 2
-    world.seed_cell(x=center, y=center, birth_rate=birth_rate, death_rate=death_rate)
-    while 0 < world.cell_count < world.target_cells:
-        world.update()
-    world.end_sim()
-    return world
+    while True:
+        world = World(
+            size=size,
+            time_step_hours=time_step_hours,
+            target_cells=target_cells,
+            growth_model=growth_model,
+            mutation_rate=mutation_rate,
+            log_file=log_file,
+            update_log_file=update_log_file,
+        )
+        center = world.size // 2
+        world.seed_cell(x=center, y=center, birth_rate=birth_rate, death_rate=death_rate)
+        while 0 < world.cell_count < world.target_cells:
+            world.update()
+        if world.cell_count >= world.target_cells:
+            world.end_sim()
+            return world
 
 
 # Helper Functions

@@ -13,10 +13,10 @@ process SIMULATE {
 
     script:
     """
-    # mkdir "run_${run_index}"
-    # cd "run_${run_index}"
+    mkdir "run_${run_index}"
+    cd "run_${run_index}"
     sim.py \
-        --config "${run_config}" \
+        --config "../${run_config}" \
         --run-index ${run_index}
     """
 }
@@ -25,16 +25,8 @@ process SIMULATE {
 workflow {
     def run_config = file(params.runs, checkIfExists: true)
     def runs = new groovy.json.JsonSlurper().parse(run_config.toFile())
-    if (!(runs instanceof List) || runs.isEmpty()) {
-        error 'The runs file must contain a nonempty JSON array of parameter objects.'
-    }
 
-    def run_inputs = channel.fromList(runs.withIndex().collect { parameters, index ->
-        if (!(parameters instanceof Map)) {
-            error "Run ${index} must be a JSON object of simulation parameters."
-        }
-        tuple(index, run_config)
-    })
-
-    SIMULATE(run_inputs)
+    SIMULATE(
+        channel.fromList(runs.indices).map { index -> tuple(index, run_config) }
+    )
 }
