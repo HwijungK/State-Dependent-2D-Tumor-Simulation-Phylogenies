@@ -9,7 +9,7 @@ from itertools import permutations
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
-rng = np.random.default_rng(42)
+rng = np.random.default_rng(41)
 CellState = Literal["edge", "center"]
 CellAction = Literal["death", "birth", "skip"]
 
@@ -41,12 +41,20 @@ class Cell:
 
 
 class World:
+    """Simulate cell growth and write lifetime and per-update TSV logs.
+
+    ``update_log_file`` defaults to ``<log_file stem>_updates.tsv`` beside the
+    lifetime log. Each row records the state immediately before a processed
+    action and whether that action successfully divided the cell.
+    """
+
     def __init__(self, size: int,
                  time_step_hours: float = 2.0,
                  target_cells: int = 1000,
                  growth_model: Literal["boundary", "unrestricted"] = "boundary",
                  mutation_rate: float = 1.0,
-                 log_file: str | Path | None = None):
+                 log_file: str | Path | None = None,
+                 update_log_file: str | Path | None = None):
 
         # check if inputs make sense
         if size < 1 or target_cells < 1:
@@ -96,9 +104,19 @@ class World:
 
         # Store the default log in eden_sim/data, regardless of the working directory.
         self.log_file = DATA_DIR / "log_eden.tsv" if log_file is None else Path(log_file)
+        # One row per actual cell update, including unsuccessful birth attempts.
+        self.update_log_file = (
+            self.log_file.with_name(f"{self.log_file.stem}_updates.tsv")
+            if update_log_file is None else Path(update_log_file)
+        )
+        if self.update_log_file.resolve() == self.log_file.resolve():
+            raise ValueError("log_file and update_log_file must be different files")
         self.log_file.parent.mkdir(parents = True, exist_ok = True)
+        self.update_log_file.parent.mkdir(parents = True, exist_ok = True)
         with open(self.log_file, "w") as file:
             file.write("id\tparent_id\tgeneration\tbirth_date\tdeath_date\tmutations\tstates\tposition_x\tposition_y\n")
+        with open(self.update_log_file, "w") as file:
+            file.write("step\tid\tstates\taction\tdivided\n")
 
     def update(self):
         # after adding remove cell function (which happens when cell action is death), sometimes sim keeps running when there's already nothing
@@ -113,18 +131,26 @@ class World:
         # Every cell that exists at the start of update should be updated, in random order to not be biased
         cells = self._get_all_cells_shuffled()
 
-        for cell in cells:
-            action = cell.choose_action()
+        with open(self.update_log_file, "a") as update_log:
+            for cell in cells:
+                # State can change as earlier cells divide, die, or get pushed.
+                state = self._get_cell_state(cell)
+                cell.state = state
+                action = cell.choose_action()
+                divided = False
 
-            match action:
-                case "death":
-                    self.remove_cell(cell)
-                case "birth":
-                    self.birth_new_cell(cell)
-            # print(f"cell {cell.cell_id} chooses to {action}")
+                match action:
+                    case "death":
+                        self.remove_cell(cell)
+                    case "birth":
+                        divided = self.birth_new_cell(cell)
 
-            if self.cell_count >= self.target_cells:
-                break
+                # Capture the pre-action state even if pushing changes the grid.
+                update_log.write(
+                    f"{self.step}\t{cell.cell_id}\t{state}\t{action}\t{int(divided)}\n")
+
+                if self.cell_count >= self.target_cells:
+                    break
 
     def _get_all_cells_shuffled(self):
         """Return a shuffled list of all currently alive cells"""
@@ -160,8 +186,8 @@ class World:
         self.next_id += 1
         return self.next_id - 1
 
-    def birth_new_cell(self, parent: Cell):
-        """Replace the parent with two daughters if space is available for division."""
+    def birth_new_cell(self, parent: Cell) -> bool:
+        """Replace the parent with two daughters; return whether division succeeds."""
         parent.state = self._get_cell_state(parent)
         empty_neighboring_indices = []
         for x in range(parent.x - 1, parent.x + 2):
@@ -177,13 +203,13 @@ class World:
             cell_position = empty_neighboring_indices[rng.integers(len(empty_neighboring_indices))]
         elif self.growth_model == "boundary":
             # if boundary, u can't do anything abt it
-            return
+            return False
         else:
             # if unrestricted, make space by pushing surroundings
             cell_position = self.push_to_make_space(parent)
 
             if cell_position is None:
-                return
+                return False
 
         # A successful division ends the parent's lifetime and starts two new lifetimes.
         self.remove_cell(parent)
@@ -209,6 +235,7 @@ class World:
         for x, y in daughter_positions:
             daughter = self.grid[x, y]
             daughter.state = self._get_cell_state(daughter)
+        return True
 
     def seed_cell(self, x: int, y: int, birth_rate: float, death_rate: float):
         """Used at the start of the simulation to seed the founding cell"""
