@@ -7,17 +7,16 @@ process SIMULATE {
 
     input:
     tuple val(run_index), path(run_config)
-    path simulation_script
 
     output:
     tuple val(run_index), path("run_${run_index}"), emit: runs
 
     script:
     """
-    mkdir "run_${run_index}"
-    cd "run_${run_index}"
-    "${params.python}" "../${simulation_script}" \
-        --config "../${run_config}" \
+    # mkdir "run_${run_index}"
+    # cd "run_${run_index}"
+    sim.py \
+        --config "${run_config}" \
         --run-index ${run_index}
     """
 }
@@ -37,5 +36,5 @@ workflow {
         tuple(index, run_config)
     })
 
-    SIMULATE(run_inputs, file("${projectDir}/bin/sim.py", checkIfExists: true))
+    SIMULATE(run_inputs)
 }
