@@ -12,6 +12,9 @@ from Bio.Phylo.BaseTree import Clade, Tree
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
+import matplotlib as mpl
+from matplotlib.lines import Line2D
+
 
 def read_sim_log(path: str | Path) -> pd.DataFrame:
     """Read a simulation TSV, preserving cell and parent IDs as strings."""
@@ -131,6 +134,9 @@ def plot_sim_tree(
     tree: Tree,
     *,
     ax: Axes | None = None,
+    birth_rates: dict[str, float] | None = None,
+    vmin: float | None = None,
+    vmax: float | None = None,
 ) -> tuple[Figure, Axes]:
     """Plot state markers for survivors and their branching common ancestors.
 
@@ -153,8 +159,31 @@ def plot_sim_tree(
             raise ValueError("Each node must have a type annotation of 'edge' or 'center'.")
         types_by_clade[clade] = node_type
 
-    tree.root.color = "#237A8A"
-    tree.root.width = 1.8
+
+    rates_by_clade = {}
+    if birth_rates:
+        for clade in tree.find_clades(order="postorder"):
+            if clade.name is not None:
+                rates_by_clade[clade] = birth_rates[clade.name]
+            else:
+                tip_rates = [birth_rates[t.name] for t in clade.get_terminals()
+                             if t.name in birth_rates]
+                rates_by_clade[clade] = sum(tip_rates) / len(tip_rates)
+
+    use_rate = bool(rates_by_clade)
+    if use_rate:
+        norm = mpl.colors.Normalize(
+            vmin=vmin if vmin is not None else min(rates_by_clade.values()),
+            vmax=vmax if vmax is not None else max(rates_by_clade.values()),
+        )
+        cmap = plt.get_cmap("viridis")
+        for clade, r in rates_by_clade.items():
+            clade.color = mpl.colors.to_hex(cmap(norm(r)))
+            clade.width = 1.8
+    else:
+        tree.root.color = "#237A8A"
+        tree.root.width = 1.8
+
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, max(4, 0.28 * tree.count_terminals())))
     else:
@@ -188,18 +217,28 @@ def plot_sim_tree(
         if is_survivor or surviving_branches >= 2:
             marked_clades.append(clade)
 
-    for state, color in state_colors.items():
-        positions = [
-            (x_positions[clade], y_positions[clade]) for clade in marked_clades
-            if types_by_clade[clade] == state
-        ]
-        if positions:
-            ax.scatter(
-                *zip(*positions),
-                marker="o", s=36, color=color,
-                edgecolors="white", linewidths=0.6,
-                zorder=4, label=state,
-            )
+    markers = {"edge": "o", "center": "s"}
+    for state, marker in markers.items():
+        clades = [c for c in marked_clades if types_by_clade[c] == state]
+        if not clades:
+            continue
+        xs = [x_positions[c] for c in clades]
+        ys = [y_positions[c] for c in clades]
+        if use_rate:
+            ax.scatter(xs, ys, c=[rates_by_clade[c] for c in clades],
+                       cmap=cmap, norm=norm, marker=marker, s=36,
+                       edgecolors="white", linewidths=0.6, zorder=4)
+        else:
+            ax.scatter(xs, ys, marker=marker, s=36, color=state_colors[state],
+                       edgecolors="white", linewidths=0.6, zorder=4)
 
-    ax.legend(title="Cell state", loc="upper right")
+    if use_rate:
+        sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+        fig.colorbar(sm, ax=ax, pad=0.02, shrink=0.4,
+                     label="Mean birth rate (generation / tick)")
+        handles = [Line2D([], [], marker=m, linestyle="", color="gray", label=s)
+                   for s, m in markers.items()]
+        ax.legend(handles=handles, title="Cell state", loc="upper right")
+    else:
+        ax.legend(title="Cell state", loc="upper right")
     return fig, ax
