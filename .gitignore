@@ -1,3 +1,9 @@
+# Nextflow runtime and results
+.nextflow/
+.nextflow.log*
+work/
+results/
+
 # Large Data Files
 /data/**
 
