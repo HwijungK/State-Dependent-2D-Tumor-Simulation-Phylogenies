@@ -8,6 +8,12 @@ FASTA headers must be state_id_death_time, as written by log_to_fasta.py.
 Sequences, type traits, alignment IDs/references, sampling proportions, and
 BEAST output filenames are replaced. Sampling proportions are calculated
 separately for center and edge: sampled / final survivors in the full log.
+The fixed clock.rate is the mean of mutations / (simulation ticks * sequence
+length) over sampled cells. Mutation counts come from their logged mutation
+sets. Final survivors are logged at step + 1, so the tick count is the maximum
+death_date minus one. The linked relative clock rates remain estimated by MCMC.
+This empirical mean describes sampled root-to-tip lineages; it approximates
+the normalized clock's branch-time-weighted mean.
 Other model parameters, priors, operators, and MCMC settings stay as in the
 template. The template's contemporaneous sampling model requires all sampled
 cells to have the same death_time.
@@ -17,12 +23,14 @@ files and the template are never overwritten; use --output for another name.
 """
 
 import argparse
+import ast
 from collections import Counter
 import csv
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 import re
+from statistics import fmean
 import xml.etree.ElementTree as ET
 
 
@@ -149,6 +157,55 @@ def calculate_sampling_proportions(
     return {state: sampled[state] / totals[state] for state in TYPES}
 
 
+def estimate_clock_rate(records: list[FastaRecord], simulation_log: str | Path) -> float:
+    """Average each sampled cell's mutations / (completed ticks * sequence length).
+
+    Counts mutations directly, including inherited mutations and zero-mutation
+    samples, rather than assuming one mutation per generation. The simulator
+    starts at tick zero and logs final survivors at ``World.step + 1``.
+    """
+    if not records:
+        raise ValueError("At least one sampled cell is needed to estimate clock.rate.")
+    sampled_ids = {record.cell_id for record in records}
+    mutation_counts = {}
+    latest_time = None
+    with open(simulation_log, newline="") as file:
+        reader = csv.DictReader(file, delimiter="\t")
+        required = {"id", "death_date", "mutations"}
+        if not required.issubset(reader.fieldnames or ()):
+            raise ValueError("Estimating clock.rate requires id, death_date, and mutations in the full log.")
+        for row in reader:
+            death_time = Decimal(row["death_date"])
+            if not death_time.is_finite() or death_time < 0:
+                raise ValueError(f"Line {reader.line_num}: invalid death_date.")
+            if latest_time is None or death_time > latest_time:
+                latest_time = death_time
+            if row["id"] not in sampled_ids:
+                continue
+            try:
+                mutations = ast.literal_eval(row["mutations"])
+            except (ValueError, SyntaxError) as error:
+                raise ValueError(f"Cell {row['id']}: invalid mutations set.") from error
+            if not isinstance(mutations, set) or any(
+                type(position) is not int or position < 0 for position in mutations
+            ):
+                raise ValueError(f"Cell {row['id']}: mutations must be a set of integer positions.")
+            mutation_counts[row["id"]] = len(mutations)
+
+    missing_ids = sampled_ids - mutation_counts.keys()
+    if missing_ids:
+        raise ValueError(f"Sampled cell IDs missing from simulation log: {', '.join(sorted(missing_ids))}.")
+    if latest_time is None or latest_time <= 1 or latest_time != latest_time.to_integral_value():
+        raise ValueError("Estimating clock.rate requires a positive number of completed simulation ticks.")
+    total_ticks = int(latest_time) - 1
+    if any(not record.sequence for record in records):
+        raise ValueError("Estimating clock.rate requires nonempty sampled sequences.")
+    return fmean(
+        mutation_counts[record.cell_id] / (total_ticks * len(record.sequence))
+        for record in records
+    )
+
+
 def _validate_references(root: ET.Element) -> None:
     ids = [element.attrib["id"] for element in root.iter() if "id" in element.attrib]
     if len(ids) != len(set(ids)):
@@ -185,6 +242,7 @@ def create_beast_xml(
     if not Path(simulation_log).is_file():
         raise FileNotFoundError(f"Full simulation log not found: {simulation_log}. Supply --simulation-log.")
     proportions = calculate_sampling_proportions(records, simulation_log)
+    clock_rate = estimate_clock_rate(records, simulation_log)
     template_path = Path(template_path)
     output_path = Path(output_path) if output_path is not None else DATA_DIR / f"{fasta_path.stem}_SDEVO.xml"
     if output_path.resolve() == template_path.resolve():
@@ -227,6 +285,26 @@ def create_beast_xml(
     rho_values[0].set("dimension", str(len(TYPES)))
     rho_values[0].text = " ".join(str(proportions[state]) for state in TYPES)
 
+    clocks = [
+        element for element in root.iter("branchRateModel")
+        if element.get("spec", "").endswith("BdmmStateClock")
+    ]
+    if len(clocks) != 1:
+        raise ValueError("Template must contain one SDevo state-dependent clock.")
+    clock_values = clocks[0].findall("parameter[@name='clock.rate']")
+    if len(clock_values) != 1:
+        raise ValueError("Template must define one clock.rate parameter.")
+    clock_values[0].text = str(clock_rate)
+    clock_values[0].set("estimate", "false")
+    relative_reference = clocks[0].get("relativeClockRates", "")
+    relative_parameters = [
+        element for element in root.iter("parameter")
+        if relative_reference.startswith("@") and element.get("id") == relative_reference[1:]
+    ]
+    if len(relative_parameters) != 1:
+        raise ValueError("Template must reference one parameter for relativeClockRates.")
+    relative_parameters[0].set("estimate", "true")
+
     for element in root.iter():
         for attribute, value in list(element.attrib.items()):
             element.set(attribute, value.replace(old_id, alignment_id))
@@ -256,7 +334,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--simulation-log", type=Path,
-        help="full simulation TSV used to calculate per-state sampling proportions",
+        help="full simulation TSV used to calculate sampling proportions and the empirical clock rate",
     )
     parser.add_argument("--template", type=Path, default=DEFAULT_TEMPLATE, help="SDEVO XML template")
     parser.add_argument(
