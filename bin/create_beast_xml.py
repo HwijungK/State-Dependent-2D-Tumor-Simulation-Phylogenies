@@ -1,8 +1,10 @@
+#!/usr/bin/env python
+
 """Fill the SDEVO BEAST template from a subsampled simulation FASTA.
 
 Examples, run from the project directory:
-    python eden_sim/create_beast_xml.py eden_sim/data
-    python eden_sim/create_beast_xml.py path/to/sample.fasta --simulation-log path/to/log_eden.tsv
+    python bin/create_beast_xml.py sample.fasta --simulation-log run.tsv --output run.xml
+    python bin/create_beast_xml.py sample.fasta --simulation-log run.tsv --output run.xml --template template.xml
 
 FASTA headers must be state_id_death_time, as written by log_to_fasta.py.
 Sequences, type traits, alignment IDs/references, sampling proportions, and
@@ -18,8 +20,9 @@ Other model parameters, priors, operators, and MCMC settings stay as in the
 template. The template's contemporaneous sampling model requires all sampled
 cells to have the same death_time.
 
-Generated XML defaults to eden_sim/data/<FASTA stem>_SDEVO.xml. Existing output
-files and the template are never overwritten; use --output for another name.
+The FASTA, full simulation log, and output paths must be provided explicitly.
+Only the template has a default path: assets/subsampled30_SDEVO_fixed.xml.
+Existing output files and the template are never overwritten.
 """
 
 import argparse
@@ -34,8 +37,7 @@ from statistics import fmean
 import xml.etree.ElementTree as ET
 
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
-DEFAULT_TEMPLATE = DATA_DIR / "sdevor2" / "subsampled30_SDEVO_fixed.xml"
+DEFAULT_TEMPLATE = Path(__file__).resolve().parent.parent / "assets" / "subsampled30_SDEVO_fixed.xml"
 TYPES = ("center", "edge")  # BDMM-Prime TypeSet sorts type names alphabetically.
 FASTA_SUFFIXES = {".fasta", ".fa", ".fas", ".fna"}
 
@@ -219,32 +221,25 @@ def _validate_references(root: ET.Element) -> None:
 
 
 def create_beast_xml(
-    fasta_path: str | Path = DATA_DIR / "log_eden_subsampled.fasta",
+    fasta_path: str | Path,
     *,
-    simulation_log: str | Path | None = None,
+    simulation_log: str | Path,
+    output_path: str | Path,
     template_path: str | Path = DEFAULT_TEMPLATE,
-    output_path: str | Path | None = None,
 ) -> Path:
     """Fill the template and return the path to a newly created XML file.
 
-    For ``*_subsampled.fasta``, the full log defaults to the neighboring TSV
-    without ``_subsampled``. For other names it defaults to ``log_eden.tsv``
-    beside the FASTA; callers can supply ``simulation_log`` explicitly.
+    The FASTA, full simulation log, and output paths are required. Only the
+    template path defaults to the project's SDEVO template asset.
     """
     fasta_path = find_fasta(fasta_path)
     records = read_fasta(fasta_path)
-    if simulation_log is None:
-        log_stem = (
-            fasta_path.stem.removesuffix("_subsampled")
-            if fasta_path.stem.endswith("_subsampled") else "log_eden"
-        )
-        simulation_log = fasta_path.with_name(f"{log_stem}.tsv")
     if not Path(simulation_log).is_file():
-        raise FileNotFoundError(f"Full simulation log not found: {simulation_log}. Supply --simulation-log.")
+        raise FileNotFoundError(f"Full simulation log not found: {simulation_log}.")
     proportions = calculate_sampling_proportions(records, simulation_log)
     clock_rate = estimate_clock_rate(records, simulation_log)
     template_path = Path(template_path)
-    output_path = Path(output_path) if output_path is not None else DATA_DIR / f"{fasta_path.stem}_SDEVO.xml"
+    output_path = Path(output_path)
     if output_path.resolve() == template_path.resolve():
         raise ValueError("Output must be a new file, not the template.")
     if output_path.exists():
@@ -329,17 +324,22 @@ def main(argv: list[str] | None = None) -> None:
         description="Create a BEAST SDEVO XML from subsampled simulation sequences."
     )
     parser.add_argument(
-        "fasta", nargs="?", type=Path, default=DATA_DIR / "log_eden_subsampled.fasta",
+        "fasta", type=Path,
         help="FASTA file or directory containing one subsampled FASTA",
     )
     parser.add_argument(
+<<<<<<< HEAD:bin/create_beast_xml.py
+        "--simulation-log", type=Path, required=True,
+        help="full simulation TSV used to calculate per-state sampling proportions",
+=======
         "--simulation-log", type=Path,
         help="full simulation TSV used to calculate sampling proportions and the empirical clock rate",
+>>>>>>> main:eden_sim/create_beast_xml.py
     )
     parser.add_argument("--template", type=Path, default=DEFAULT_TEMPLATE, help="SDEVO XML template")
     parser.add_argument(
-        "-o", "--output", type=Path,
-        help="new XML filename (default: eden_sim/data/<FASTA stem>_SDEVO.xml)",
+        "-o", "--output", type=Path, required=True,
+        help="new XML filename",
     )
     args = parser.parse_args(argv)
     try:

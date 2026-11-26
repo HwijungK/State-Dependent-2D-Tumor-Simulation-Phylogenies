@@ -1,7 +1,9 @@
+#!/usr/bin/env python
+
 """Calculate successful divisions per actual cell update, grouped by state.
 
 Run after a new simulation, for example:
-    python eden_sim/calculate-birthrate.py eden_sim/data/log_eden_updates.tsv
+    python calculate_birthrate.py data/log_eden_updates.tsv
 
 World writes one update-log row for every cell whose action is processed. Its
 state is measured immediately before that action. Deaths, skips, and blocked

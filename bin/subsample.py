@@ -1,7 +1,13 @@
-"""Subsample final simulation survivors while retaining their full ancestry."""
+#!/usr/bin/env python
 
-from math import ceil
-from numbers import Integral, Real
+"""Subsample final survivors and write their ancestry and end nodes as TSVs.
+
+Usage:
+    python bin/subsample.py --input run.tsv --output sampled.tsv --endnodes survivors.tsv --N 100 --seed 42
+"""
+
+import argparse
+from numbers import Integral
 from pathlib import Path
 
 import pandas as pd
@@ -10,14 +16,12 @@ import pandas as pd
 def subsample_log(
     path: str | Path,
     *,
-    proportion: float | None = None,
-    n: int | None = None,
+    n: int,
     seed: int | None = None,
 ) -> pd.DataFrame:
     """Return sampled final survivors and every ancestor back to the origin.
 
-    ``path`` points to a simulation TSV. Supply exactly one of ``proportion``
-    (in (0, 1], rounded up to a whole cell) or ``n`` (a positive integer).
+    ``path`` points to a simulation TSV; ``n`` is a positive integer count.
     Sampling is uniform without replacement; ``seed`` makes it reproducible.
     Original columns, cell IDs, and row order are preserved.
 
@@ -25,13 +29,7 @@ def subsample_log(
     death_date, so the input must be a completed run with surviving cells.
     The returned row count includes ancestors and can exceed the sample size.
     """
-    if (proportion is None) == (n is None):
-        raise ValueError("Supply exactly one of proportion or n.")
-
-    if proportion is not None:
-        if isinstance(proportion, bool) or not isinstance(proportion, Real) or not 0 < proportion <= 1:
-            raise ValueError("proportion must be a number greater than 0 and at most 1.")
-    elif isinstance(n, bool) or not isinstance(n, Integral) or n < 1:
+    if isinstance(n, bool) or not isinstance(n, Integral) or n < 1:
         raise ValueError("n must be a positive integer.")
 
     df = pd.read_csv(
@@ -56,7 +54,7 @@ def subsample_log(
         raise ValueError(f"Missing parent IDs: {', '.join(sorted(missing_parents))}.")
 
     survivors = df.loc[df["death_date"].eq(df["death_date"].max()), "id"]
-    sample_size = ceil(proportion * len(survivors)) if proportion is not None else int(n)
+    sample_size = int(n)
     if sample_size > len(survivors):
         raise ValueError(
             f"Requested {sample_size} cells, but only {len(survivors)} final survivors are available."
@@ -75,3 +73,33 @@ def subsample_log(
         retained_ids.update(lineage)
 
     return df.loc[df["id"].isin(retained_ids)].copy()
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Sample N final survivors, retaining their ancestry and exporting the end nodes separately."
+    )
+    parser.add_argument("-i", "--input", type=Path, required=True, help="complete simulation TSV")
+    parser.add_argument("-o", "--output", type=Path, required=True, help="TSV of sampled survivors and ancestors")
+    parser.add_argument("--endnodes", type=Path, required=True, help="TSV containing only the N sampled final survivors")
+    parser.add_argument("-n", "--N", dest="n", type=int, required=True, help="positive integer number of survivors to sample")
+    parser.add_argument("--seed", type=int, help="optional random seed for reproducible sampling")
+    args = parser.parse_args(argv)
+    try:
+        paths = (args.input, args.output, args.endnodes)
+        if len({path.resolve() for path in paths}) != len(paths):
+            raise ValueError("input, output, and endnodes must be different files.")
+        sampled = subsample_log(args.input, n=args.n, seed=args.seed)
+        endnodes = sampled.loc[sampled["death_date"].eq(sampled["death_date"].max())]
+        for path in (args.output, args.endnodes):
+            path.parent.mkdir(parents=True, exist_ok=True)
+        sampled.to_csv(args.output, sep="\t", index=False)
+        endnodes.to_csv(args.endnodes, sep="\t", index=False)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+    print(f"Wrote {len(sampled)} survivors and ancestors to {args.output}")
+    print(f"Wrote {len(endnodes)} final survivors to {args.endnodes}")
+
+
+if __name__ == "__main__":
+    main()
