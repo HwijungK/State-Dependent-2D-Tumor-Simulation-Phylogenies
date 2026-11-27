@@ -237,7 +237,7 @@ def plot_sim_tree(
     if use_rate:
         sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
         fig.colorbar(sm, ax=ax, pad=0.02, shrink=0.4,
-                     label="Mean birth rate (generation / tick)")
+                     label="Lineage mean birth rate (generation / tick)")
         handles = [Line2D([], [], marker=m, linestyle="", color="gray", label=s)
                    for s, m in markers.items()]
         ax.legend(handles=handles, title="Cell state", loc="upper right")

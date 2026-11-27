@@ -1,4 +1,5 @@
 import contextlib
+import ast
 import csv
 import io
 import json
@@ -65,6 +66,16 @@ class SimulationTests(unittest.TestCase):
         updates = self.read_log(world.update_log_file)
         self.assertEqual(len(updates), 2)
         self.assertTrue(all(row["action"] == "birth" and row["divided"] == "1" for row in updates))
+
+    def test_sequences_include_the_first_and_last_mutation_positions(self):
+        log_file = self.directory / "mutations.tsv"
+        sim.run_simulation(size=3, target_cells=2, birth_rate=1, death_rate=0, log_file=log_file)
+        rows = self.read_log(log_file)
+        founder = next(row for row in rows if row["id"] == "1")
+        for row in rows:
+            mutations = ast.literal_eval(row["mutations"])
+            differences = {index for index, (a, b) in enumerate(zip(founder["seq"], row["seq"]), 1) if a != b}
+            self.assertEqual(differences, mutations)
 
     def test_cli_runs_only_the_selected_config_object(self):
         config = self.directory / "runs.json"

@@ -342,12 +342,12 @@ class World:
         perms = list(permutations(bases, r = 2))
         mapping = {
             i: perms[rng.integers(0, len(perms))]
-            for i in range(seq_length)
+            for i in range(1, seq_length + 1)
         }
 
         df['seq'] = df['mutations'].map(
             lambda mut:
-            "".join(mapping[i][1] if i in mut else mapping[i][0] for i in range(seq_length))
+            "".join(mapping[i][1] if i in mut else mapping[i][0] for i in range(1, seq_length + 1))
         )
 
         # Write result to logfile

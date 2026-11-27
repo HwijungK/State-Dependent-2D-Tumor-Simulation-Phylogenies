@@ -21,7 +21,7 @@ template. The template's contemporaneous sampling model requires all sampled
 cells to have the same death_time.
 
 The FASTA, full simulation log, and output paths must be provided explicitly.
-Only the template has a default path: assets/subsampled30_SDEVO_fixed.xml.
+Only the template has a default path: assets/SDEVO_template.xml.
 Existing output files and the template are never overwritten.
 """
 
@@ -37,7 +37,7 @@ from statistics import fmean
 import xml.etree.ElementTree as ET
 
 
-DEFAULT_TEMPLATE = Path(__file__).resolve().parent.parent / "assets" / "subsampled30_SDEVO_fixed.xml"
+DEFAULT_TEMPLATE = Path(__file__).resolve().parent.parent / "assets" / "SDEVO_template.xml"
 TYPES = ("center", "edge")  # BDMM-Prime TypeSet sorts type names alphabetically.
 FASTA_SUFFIXES = {".fasta", ".fa", ".fas", ".fna"}
 
@@ -226,11 +226,16 @@ def create_beast_xml(
     simulation_log: str | Path,
     output_path: str | Path,
     template_path: str | Path = DEFAULT_TEMPLATE,
+    clock_model: str = "sdevo",
+    chain_length: int | None = None,
+    log_every: int | None = None,
 ) -> Path:
     """Fill the template and return the path to a newly created XML file.
 
     The FASTA, full simulation log, and output paths are required. Only the
-    template path defaults to the project's SDEVO template asset.
+    template path defaults to the project's SDEVO template asset. The strict
+    model keeps the same BDMM-Prime prior and empirical global clock rate,
+    replacing only the state-dependent sequence clock with a strict clock.
     """
     fasta_path = find_fasta(fasta_path)
     records = read_fasta(fasta_path)
@@ -300,6 +305,19 @@ def create_beast_xml(
         raise ValueError("Template must reference one parameter for relativeClockRates.")
     relative_parameters[0].set("estimate", "true")
 
+    if clock_model == "strict":
+        clock = clocks[0]
+        clock.set("spec", "beast.evolution.branchratemodel.StrictClockModel")
+        del clock.attrib["normalize"]
+        del clock.attrib["relativeClockRates"]
+        clock.remove(clock.find("typedTree"))
+
+    if chain_length is not None:
+        root.find("run").set("chainLength", str(chain_length))
+    if log_every is not None:
+        for logger in root.iter("logger"):
+            logger.set("logEvery", str(log_every))
+
     for element in root.iter():
         for attribute, value in list(element.attrib.items()):
             element.set(attribute, value.replace(old_id, alignment_id))
@@ -321,22 +339,20 @@ def create_beast_xml(
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Create a BEAST SDEVO XML from subsampled simulation sequences."
+        description="Create a BEAST SDevo or strict-clock XML from subsampled simulation sequences."
     )
     parser.add_argument(
         "fasta", type=Path,
         help="FASTA file or directory containing one subsampled FASTA",
     )
     parser.add_argument(
-<<<<<<< HEAD:bin/create_beast_xml.py
         "--simulation-log", type=Path, required=True,
-        help="full simulation TSV used to calculate per-state sampling proportions",
-=======
-        "--simulation-log", type=Path,
         help="full simulation TSV used to calculate sampling proportions and the empirical clock rate",
->>>>>>> main:eden_sim/create_beast_xml.py
     )
     parser.add_argument("--template", type=Path, default=DEFAULT_TEMPLATE, help="SDEVO XML template")
+    parser.add_argument("--clock-model", choices=("sdevo", "strict"), default="sdevo")
+    parser.add_argument("--chain-length", type=int, help="override the template MCMC chain length")
+    parser.add_argument("--log-every", type=int, help="override the template logging interval")
     parser.add_argument(
         "-o", "--output", type=Path, required=True,
         help="new XML filename",
@@ -346,6 +362,7 @@ def main(argv: list[str] | None = None) -> None:
         output = create_beast_xml(
             args.fasta, simulation_log=args.simulation_log,
             template_path=args.template, output_path=args.output,
+            clock_model=args.clock_model, chain_length=args.chain_length, log_every=args.log_every,
         )
     except (OSError, ValueError, ArithmeticError, ET.ParseError) as error:
         parser.error(str(error))
