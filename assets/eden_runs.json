@@ -2,15 +2,15 @@
   {
     "target_cells": 1000,
     "growth_model": "boundary",
-    "log_file": "better_name",
+    "log_file": "boundary_",
     "death_rate": 0.02,
-    "birth_rate": 0.01
+    "birth_rate": 0.1
   },
   {
     "target_cells": 1000,
     "growth_model": "unrestricted",
     "log_file": "better_name",
     "death_rate": 0.02,
-    "birth_rate": 0.01
+    "birth_rate": 0.1
   }
 ]

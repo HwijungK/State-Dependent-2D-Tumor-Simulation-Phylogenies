@@ -1,4 +1,5 @@
 import contextlib
+import ast
 import csv
 import io
 import json
@@ -50,16 +51,31 @@ class SimulationTests(unittest.TestCase):
                 self.assertTrue(world.update_log_file.is_file())
                 self.assertEqual(world.cell_count, 0)
 
-    def test_stops_and_writes_logs_on_extinction(self):
+    def test_restarts_after_extinction_and_keeps_only_successful_attempt(self):
         log_file = self.directory / "extinction.tsv"
-        world = sim.run_simulation(
-            size=3, target_cells=3, birth_rate=0, death_rate=1, log_file=log_file,
-        )
-        self.assertEqual(world.step, 1)
+        with patch.object(sim.Cell, "choose_action", side_effect=["birth", "death", "death", "birth", "birth"]):
+            world = sim.run_simulation(
+                size=3, target_cells=3, birth_rate=1, death_rate=0, log_file=log_file,
+            )
+        self.assertEqual(world.step, 2)
         rows = self.read_log(log_file)
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(int(rows[0]["death_date"]), world.step)
-        self.assertIn("seq", rows[0])
+        self.assertEqual(len(rows), 5)
+        self.assertEqual({row["id"] for row in rows}, {"1", "2", "3", "4", "5"})
+        self.assertEqual(sum(int(row["death_date"]) == world.step + 1 for row in rows), 3)
+        self.assertTrue(all(row["seq"] for row in rows))
+        updates = self.read_log(world.update_log_file)
+        self.assertEqual(len(updates), 2)
+        self.assertTrue(all(row["action"] == "birth" and row["divided"] == "1" for row in updates))
+
+    def test_sequences_include_the_first_and_last_mutation_positions(self):
+        log_file = self.directory / "mutations.tsv"
+        sim.run_simulation(size=3, target_cells=2, birth_rate=1, death_rate=0, log_file=log_file)
+        rows = self.read_log(log_file)
+        founder = next(row for row in rows if row["id"] == "1")
+        for row in rows:
+            mutations = ast.literal_eval(row["mutations"])
+            differences = {index for index, (a, b) in enumerate(zip(founder["seq"], row["seq"]), 1) if a != b}
+            self.assertEqual(differences, mutations)
 
     def test_cli_runs_only_the_selected_config_object(self):
         config = self.directory / "runs.json"
